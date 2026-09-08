@@ -1,5 +1,7 @@
 # SmartScrapSetu
 
+LIVE DEMO : https://scrapsetu.vercel.app
+
 > A digital bridge between citizens, local scrap collectors, authorized recyclers, and circular-economy administrators.
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](https://nextjs.org/)
