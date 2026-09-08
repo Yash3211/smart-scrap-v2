@@ -1,6 +1,8 @@
 # SmartScrapSetu (स्मार्ट स्क्रैप सेतु)
 
-> **Decentralized Circular Economy Digital Infrastructure for Urban Scrap Valorization & EPR Traceability**
+LIVE DEMO : https://scrapsetu.vercel.app
+
+> A digital bridge between citizens, local scrap collectors, authorized recyclers, and circular-economy administrators.
 
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.0.0-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![React 19](https://img.shields.io/badge/React-19.0.0-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
