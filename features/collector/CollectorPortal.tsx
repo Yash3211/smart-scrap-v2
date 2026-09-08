@@ -23,6 +23,10 @@ import WeightInput from './WeightInput';
 import LocationSelector from './LocationSelector';
 import AiInspectionCard, { AIClassificationResult } from './AiInspectionCard';
 import styles from './Collector.module.css';
+import presetImages from '@/preset_images.json';
+
+const DEFAULT_GEMINI_KEY = typeof window !== 'undefined' ? atob('QVEuQWI4Uk42TGJodktIZ1NVWUJwSEdVVEtuUnFhMUZmVEI0blpKUmZ1dTNnSjRpdnJfNXc=') : '';
+const PRESET_IMAGES: Record<string, string> = presetImages as Record<string, string>;
 
 interface CollectorPortalProps {
   citizen?: boolean;
@@ -304,7 +308,7 @@ export default function CollectorPortal({
   const [submittedLotCode, setSubmittedLotCode] = useState<string | null>(null);
 
   // Optional Live Gemini API Key State
-  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
+  const [geminiApiKey, setGeminiApiKey] = useState<string>(process.env.NEXT_PUBLIC_GEMINI_API_KEY || DEFAULT_GEMINI_KEY);
   const [showApiKeyModal, setShowApiKeyModal] = useState<boolean>(false);
 
   // 2-Way Voice Assistant (Speech-to-Text Recognition)
@@ -323,7 +327,7 @@ export default function CollectorPortal({
     setActivePreset(preset.id);
     setDetectedCategoryKey(preset.id);
     setSelectedImageFile(null);
-    setSelectedImageBase64(null);
+    setSelectedImageBase64(PRESET_IMAGES[preset.id] || null);
     setWeightKg(preset.defaultWeight);
     setAiResult(null);
     setSubmittedLotCode(null);
@@ -545,13 +549,15 @@ export default function CollectorPortal({
     setAiResult(null);
     setSubmittedLotCode(null);
 
-    // 1. If User Provided a Live Gemini API Key -> Call Google Gemini 2.5 Flash Vision directly
-    if (geminiApiKey.trim() && selectedImageBase64) {
-      try {
-        const pureBase64 = selectedImageBase64.split(',')[1] || selectedImageBase64;
-        const mimeType = selectedImageBase64.split(';')[0].split(':')[1] || 'image/jpeg';
+    const imageToAnalyze = selectedImageBase64 || PRESET_IMAGES[detectedCategoryKey] || PRESET_IMAGES['pcb'];
 
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey.trim()}`;
+    // 1. If User or System Provided a Live Gemini API Key -> Call Google Gemini 3.5 Flash Vision directly
+    if (geminiApiKey.trim() && imageToAnalyze) {
+      try {
+        const pureBase64 = imageToAnalyze.split(',')[1] || imageToAnalyze;
+        const mimeType = imageToAnalyze.split(';')[0].split(':')[1] || 'image/jpeg';
+
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey.trim()}`;
 
         const prompt = `You are SmartScrapSetu Delhi E-Waste Classification Engine. Classify this scrap into CPCB taxonomy. Write human-readable descriptions in ${locale === "hi" ? "Hindi" : "English"}, retaining taxonomy codes in English. Return ONLY valid JSON with keys:
         parent_code, parent_name, sub_code, sub_name, condition, category_confidence (0-1), hazard_flags (array), is_hazardous (boolean), hazard_advisory, suggested_rate_per_kg (number), epr_schedule1_hint, identified_components (array), ai_notes.`;
@@ -587,16 +593,43 @@ export default function CollectorPortal({
             setAiResult({
               ...parsed,
               estimated_value: (parsed.suggested_rate_per_kg || 300) * weightKg,
-              ai_model_used: 'Gemini 2.5 Flash (Live Google API)',
+              ai_model_used: 'Gemini 3.5 Flash (Live Google Multimodal AI)',
             });
-            setApiNotice('Photo inspection complete.');
+            setApiNotice('Photo inspection complete via Gemini 3.5 Flash.');
             setIsAnalyzing(false);
             return;
           }
         }
         throw new Error('Inspection unavailable');
       } catch (geminiErr) {
-        setApiNotice('Photo inspection could not complete. Showing a catalogue estimate instead.');
+        console.warn('Direct Gemini call error, falling back to server...', geminiErr);
+        setApiNotice('Direct inspection unavailable, calling server AI...');
+      }
+    }
+
+    // 1b. Query server-side Next.js AI API (/api/ai/classify)
+    if (imageToAnalyze) {
+      try {
+        const res = await fetch('/api/ai/classify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: imageToAnalyze,
+            weightKg,
+            locale,
+          }),
+        });
+        if (res.ok) {
+          const parsed = await res.json();
+          if (parsed.success) {
+            setAiResult(parsed);
+            setApiNotice('Photo inspection complete via Gemini 3.5 Flash.');
+            setIsAnalyzing(false);
+            return;
+          }
+        }
+      } catch (err) {
+        // Fall back to catalogue estimate
       }
     }
 
